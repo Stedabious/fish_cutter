@@ -3,9 +3,8 @@
 
 
 ##   套件版本
-
+```
 cudnn == 10.0 (7.6.5.32)
-
 pyqt5 == 5.15.6
 torch == 1.7.1+cu110
 torchvision == 0.8.2+cu110
@@ -14,6 +13,7 @@ opencv-python == 4.5.3.56
 pandas == 1.3.5
 matplotlib == 3.4.3
 pillow == 8.3.2
+```
 
 ##   使用流程
 -   確定插入*D435i或L515*深度攝影機和*arduino*再進行開啟
@@ -29,4 +29,27 @@ start.py 為適用使用者介面進行測試
 
 ![GITHUB]( picture/readme.png "使用者介面")
 
+
+##  內容
+
+### 功能程式 import_script
+
+-   fish_process_new.py
+判斷魚頭朝左邊右邊
+魚身體部位截圖
+
+-   area_weight.py
+魚片分切演算法
+
+### yolov7檔案
+model_data, nets, utils
+
+### 使用者介面程式
+controller_new.py
+start.py
+UI_login.py
+UI_run.py
+
+### 測試程式
+資料夾中有測試深度攝影機的程式
 

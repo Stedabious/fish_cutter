@@ -12,10 +12,10 @@ import time
 import numpy as np
 import cv2, glob
 from PIL import Image
+import copy
 
 from sqlalchemy import false
 # import import_script.HX711 as HX711
-import import_script.fish_process as FP
 import import_script.fish_process_new as FP_
 
 # import import_script.area as area
@@ -141,6 +141,10 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         # 開關
         self.iscatched = False
 
+        # 深度攝影機
+        self.intrinsics = 0
+        self.depth_scale = 0
+
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
         sys.exit()
@@ -203,7 +207,8 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
             sensor.set_option(rs.option.enable_max_usable_range, 0)
             sensor.set_option(rs.option.laser_power, 50)
             # ----------
-        
+            self.intrinsics = pipeline.get_active_profile().get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
+            self.depth_scale = pipeline.get_active_profile().get_device().first_depth_sensor().get_depth_scale()
 
             while not self.iscatched:
                 
@@ -243,6 +248,7 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         self.ui.button_camera.setEnabled(True)
         self.ui.button_run.setEnabled(False)
         self.ui.button_run_cut.setEnabled(True)
+        import pyrealsense2 as rs
 
         yolo = YOLO()
 
@@ -267,16 +273,48 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         if(len(results[0]) != 2):
             QMessageBox.warning(self, "辨識失敗", "請重新拍攝")
             self.ui.button_run_cut.setEnabled(False)
+
         else:
-            head, tail = FP.fish_dir(results)
-            self.depth_cal = FP_.get_ROI(self.depth_image, head, tail)
-            final, self.cut_pos = area.area(self.depth_image, frame, int(weight), int(cut_weight))
+
+            head, tail, fish_head, fish_tail, middle = FP_.fish_dir(results)
+            depth_image_ = copy.deepcopy(self.depth_image)
+
+            self.depth_cal = FP_.get_ROI(depth_image_, head, tail)
+            final, cut_pos = area.area(self.depth_cal, frame, int(weight), int(cut_weight), head, tail)
             self.color_image_cut = final
+
+            cut_pos = np.insert(cut_pos, len(cut_pos), fish_head)
+            cut_pos = np.insert(cut_pos, 0, fish_tail)
+
+            cut_pos_new = []
+
+            # depth_image = np.asanyarray(self.depth_frame.get_data())
+            
+            depth_image = self.depth_image * self.depth_scale
+
+            for i in range(len(cut_pos)-1):
+                # print(depth_image_[middle, cut_pos[i]])
+                # print([cut_pos[i+1], middle])
+
+                depth_point1 = rs.rs2_deproject_pixel_to_point(self.intrinsics, [middle, cut_pos[i]], depth_image[middle, cut_pos[i]])
+                point1 = np.array([depth_point1[0], depth_point1[1], depth_point1[2]])
+
+                depth_point2 = rs.rs2_deproject_pixel_to_point(self.intrinsics, [middle, cut_pos[i+1]], depth_image[middle, cut_pos[i+1]])
+                point2 = np.array([depth_point2[0], depth_point2[1], depth_point2[2]])
+
+                distance = np.linalg.norm(point2 - point1)
+                
+                print("Distance ", i+1, ": ", distance, "m")
+                cut_pos_new.append( int(distance*100*128/0.4))
+
+            self.cut_pos = cut_pos_new
+
+
             # 顯示原始、分切圖像
             self.ui.button_image_cut.setEnabled(True)
             self.ui.button_image_origin.setEnabled(True) 
 
-            self.ui.output_split.display(len(self.cut_pos))
+            self.ui.output_split.display(len(cut_pos))
             self.ui.output_camera_distance.display(49)
             self.ui.output_weight.display(weight)
 

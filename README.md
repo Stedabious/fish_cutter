@@ -42,13 +42,15 @@ start.py 為適用使用者介面進行測試
 魚片分切演算法
 
 ### yolov7檔案
-model_data, nets, utils
+model_data  
+nets  
+utils
 
 ### 使用者介面程式
-controller_new.py
-start.py
-UI_login.py
-UI_run.py
+controller_new.py  
+start.py  
+UI_login.py  
+UI_run.py  
 
 ### 測試程式
 資料夾中有測試深度攝影機的程式

@@ -11,7 +11,7 @@ import copy
 
 import serial
 
-COM_PORT = 'COM7'  # 請自行修改序列埠名稱
+COM_PORT = 'COM3'  # 請自行修改序列埠名稱
 BAUD_RATES = 9600
 ser = serial.Serial(COM_PORT, BAUD_RATES)
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
                         # 計算分切線段      彩色圖+深度圖
                         #                        深度圖    彩色圖   魚體重量   分切重量
-                        final, cut_pos = area.area(depth_img, frame, 2500, 300, head, tail)
+                        final, cut_pos = area.area(depth_img, frame, 2500, 600, head, tail)
 
                         cut_pos = np.insert(cut_pos, len(cut_pos), fish_head)
                         cut_pos = np.insert(cut_pos, 0, fish_tail)
@@ -172,9 +172,9 @@ if __name__ == "__main__":
                                     print('控制板回應：', mcu_feedback)
                                     stage += 1
                                     # print(stage)
-                                    if(stage == 6):
+                                    if(stage == 5):
                                         break
-                            print('按任意鍵進行退出...')
+                            print('按任意鍵進行退出...')    
                             cv2.waitKey(0)
                             break
                                 

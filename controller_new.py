@@ -29,7 +29,7 @@ import serial
 from UI_login import Ui_MainWindow as Ui_login
 from UI_run import Ui_MainWindow as Ui_run
 
-COM_PORT = 'COM7'  # 請自行修改序列埠名稱
+COM_PORT = 'COM3'  # 請自行修改序列埠名稱
 BAUD_RATES = 9600
 ser = serial.Serial(COM_PORT, BAUD_RATES)
 
@@ -49,11 +49,11 @@ def yolov7(color_image, depth_image, fish_weight, cut_weight):
     frame = np.array(frame)
     # RGBtoBGR满足opencv显示格式
     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    # print(type(frame))
+    # print(type(frame))z
     cv2.imshow('yolov7', frame)
 
     # 處理魚頭魚尾線段
-    head, tail = FP.fish_dir(results)
+    head, tail = FP_.fish_dir(results)
     
     # 處理魚身深度圖    深度圖
     depth_img = FP_.get_ROI(depth_image, head, tail)
@@ -251,6 +251,7 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         import pyrealsense2 as rs
 
         yolo = YOLO()
+        cv2.imwrite('fish_cut_result/1/origin.jpg', self.color_image)
 
         frame = cv2.cvtColor(self.color_image, cv2.COLOR_BGR2RGB)
         frame_ = frame.astype(np.uint8)
@@ -263,6 +264,7 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         frame = np.array(frame)
         # RGBtoBGR满足opencv显示格式
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        cv2.imwrite('fish_cut_result/1/yolov7.jpg', frame)
         # print(type(frame))
         # cv2.imshow('yolov7', frame)
         print(len(results))
@@ -270,7 +272,9 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
         cut_weight = self.ui.combo_weight.currentText()
         weight = self.ui.input_fish_weight.text()
 
-        if(len(results[0]) != 2):
+        #  or len(results[0]) != 2
+
+        if (len(results[0]) != 2):
             QMessageBox.warning(self, "辨識失敗", "請重新拍攝")
             self.ui.button_run_cut.setEnabled(False)
 
@@ -279,7 +283,13 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
             head, tail, fish_head, fish_tail, middle = FP_.fish_dir(results)
             depth_image_ = copy.deepcopy(self.depth_image)
 
+            depth_image__ = cv2.applyColorMap(cv2.convertScaleAbs(depth_image_, alpha=0.1), cv2.COLORMAP_JET)
+            cv2.imwrite('fish_cut_result/1/origin_depth.jpg', depth_image__)
+
             self.depth_cal = FP_.get_ROI(depth_image_, head, tail)
+
+            depth_image__ = cv2.applyColorMap(cv2.convertScaleAbs(self.depth_cal, alpha=0.1), cv2.COLORMAP_JET)
+            cv2.imwrite('fish_cut_result/1/fish_depth.jpg', depth_image__)
             final, cut_pos = area.area(self.depth_cal, frame, int(weight), int(cut_weight), head, tail)
             self.color_image_cut = final
 
@@ -302,9 +312,10 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
                 depth_point2 = rs.rs2_deproject_pixel_to_point(self.intrinsics, [middle, cut_pos[i+1]], depth_image[middle, cut_pos[i+1]])
                 point2 = np.array([depth_point2[0], depth_point2[1], depth_point2[2]])
 
-                distance = np.linalg.norm(point2 - point1)
+                distance = np.linalg.norm(point2 - point1) - 0.002
                 
                 print("Distance ", i+1, ": ", distance, "m")
+                print(distance*100*128/0.4)
                 cut_pos_new.append( int(distance*100*128/0.4))
 
             self.cut_pos = cut_pos_new
@@ -314,8 +325,8 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
             self.ui.button_image_cut.setEnabled(True)
             self.ui.button_image_origin.setEnabled(True) 
 
-            self.ui.output_split.display(len(cut_pos))
-            self.ui.output_camera_distance.display(49)
+            self.ui.output_split.display(len(cut_pos) -4)
+            self.ui.output_camera_distance.display(40)
             self.ui.output_weight.display(weight)
 
     # 進行分切 ===================
@@ -334,7 +345,7 @@ class Run_Window_Controller(QtWidgets.QMainWindow):
                 print('控制板回應：', mcu_feedback)
                 stage += 1
                 # print(stage)
-                if(stage == 6):
+                if(stage == 5):
                     break
 
         self.ui.button_camera.setEnabled(True)

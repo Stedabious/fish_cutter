@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nets.backbone import Backbone, Block, Conv, SiLU, Transition, autopad
+from nets.backbone import Backbone, Block, Conv, SiLU, Transition, CBAM, autopad
 
 
 class SPPCSPC(nn.Module):
@@ -238,6 +238,7 @@ class YoloBody(nn.Module):
         self.upsample   = nn.Upsample(scale_factor=2, mode="nearest")
 
         self.sppcspc                = SPPCSPC(transition_channels * 32, transition_channels * 16)
+
         self.conv_for_P5            = Conv(transition_channels * 16, transition_channels * 8)
         self.conv_for_feat2         = Conv(transition_channels * 32, transition_channels * 8)
         self.conv3_for_upsample1    = Block(transition_channels * 16, panet_channels * 4, transition_channels * 8, e=e, n=n, ids=ids)
@@ -247,10 +248,13 @@ class YoloBody(nn.Module):
         self.conv3_for_upsample2    = Block(transition_channels * 8, panet_channels * 2, transition_channels * 4, e=e, n=n, ids=ids)
 
         self.down_sample1           = Transition(transition_channels * 4, transition_channels * 4)
+        self.cbam_for_downsample1   = CBAM(transition_channels * 8)
         self.conv3_for_downsample1  = Block(transition_channels * 16, panet_channels * 4, transition_channels * 8, e=e, n=n, ids=ids)
 
         self.down_sample2           = Transition(transition_channels * 8, transition_channels * 8)
+        self.cbam_for_downsample2   = CBAM(transition_channels * 16)
         self.conv3_for_downsample2  = Block(transition_channels * 32, panet_channels * 8, transition_channels * 16, e=e, n=n, ids=ids)
+
 
         self.rep_conv_1 = conv(transition_channels * 4, transition_channels * 8, 3, 1)
         self.rep_conv_2 = conv(transition_channels * 8, transition_channels * 16, 3, 1)
@@ -276,6 +280,7 @@ class YoloBody(nn.Module):
         feat1, feat2, feat3 = self.backbone.forward(x)
         
         P5          = self.sppcspc(feat3)
+
         P5_conv     = self.conv_for_P5(P5)
         P5_upsample = self.upsample(P5_conv)
         P4          = torch.cat([self.conv_for_feat2(feat2), P5_upsample], 1)
@@ -287,12 +292,17 @@ class YoloBody(nn.Module):
         P3          = self.conv3_for_upsample2(P3)
 
         P3_downsample = self.down_sample1(P3)
+        P3_downsample = self.cbam_for_downsample1(P3_downsample)
         P4 = torch.cat([P3_downsample, P4], 1)
+
         P4 = self.conv3_for_downsample1(P4)
 
         P4_downsample = self.down_sample2(P4)
+        P4_downsample = self.cbam_for_downsample2(P4_downsample)
         P5 = torch.cat([P4_downsample, P5], 1)
+        
         P5 = self.conv3_for_downsample2(P5)
+
         
         P3 = self.rep_conv_1(P3)
         P4 = self.rep_conv_2(P4)

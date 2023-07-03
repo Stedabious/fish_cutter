@@ -75,6 +75,141 @@ class Transition(nn.Module):
         x_2 = self.cv3(x_2)
         
         return torch.cat([x_2, x_1], 1)
+
+#  ====================================== RCAG ===============================================
+class RCAG(nn.Module):
+    def __init__(self, F_int, rcag_):
+        super(RCAG, self).__init__()
+
+        self.conv_g = nn.Conv2d(F_int, F_int, kernel_size=(1, 1))
+        self.conv_f = nn.Conv2d(F_int, F_int, kernel_size=(1, 1))
+        self.relu1 = nn.ReLU()
+
+        self.conv_h = nn.Conv2d(F_int, F_int*2, kernel_size=(1, 1))
+        self.GAP = nn.AdaptiveAvgPool2d(rcag_)
+
+        self.mlp = nn.Linear(rcag_, int(F_int))
+        # self.mlp_relu = nn.ReLU()
+        self.mlp2 = nn.Linear(int(F_int), rcag_)
+        self.attention_map = nn.Sigmoid()
+
+    def forward(self, g, x):
+
+        p = self.conv_f(g)
+        q = self.conv_g(x)
+        add_1 = p + q
+        z = self.relu1(add_1)
+        z_in = self.conv_h(z)
+        res = z_in
+
+        x = self.GAP(z_in)
+        x = self.mlp(x)
+        x = self.mlp2(x)
+        x = self.attention_map(x)
+
+        x = res*x
+
+        x += res
+
+        return x
+class ATTention(nn.Module):
+    def __init__(self, F_int, rcag_):
+        super(ATTention, self).__init__()
+
+        self.GAP = nn.AdaptiveAvgPool2d(rcag_)
+
+        self.mlp = nn.Linear(rcag_, int(F_int))
+        # self.mlp_relu = nn.ReLU()
+        self.mlp2 = nn.Linear(int(F_int), rcag_)
+        self.attention_map = nn.Sigmoid()
+
+    def forward(self, x):
+
+        res = x
+        x = self.GAP(x)
+        x = self.mlp(x)
+        x = self.mlp2(x)
+        x = self.attention_map(x)
+
+        x = res*x
+        x += res
+        return x
+#  ======================================== RCAG =============================================
+
+#  ======================================== simam =============================================
+class simam_module(torch.nn.Module):
+    def __init__(self, channels = None, e_lambda = 1e-4):
+        super(simam_module, self).__init__()
+ 
+        self.activaton = nn.Sigmoid()
+        self.e_lambda = e_lambda
+ 
+    def __repr__(self):
+        s = self.__class__.__name__ + '('
+        s += ('lambda=%f)' % self.e_lambda)
+        return s
+ 
+    @staticmethod
+    def get_module_name():
+        return "simam"
+ 
+    def forward(self, x):
+ 
+        b, c, h, w = x.size()
+        
+        n = w * h - 1
+ 
+        x_minus_mu_square = (x - x.mean(dim=[2,3], keepdim=True)).pow(2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2,3], keepdim=True) / n + self.e_lambda)) + 0.5
+ 
+        return x * self.activaton(y)
+#  ======================================== simam =============================================
+
+#  ======================================== cbam ==============================================
+class ChannelAttentionModule(nn.Module):
+    def __init__(self, channel, ratio=16):
+        super(ChannelAttentionModule, self).__init__()
+        #使用自适应池化缩减map的大小，保持通道不变
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+ 
+        self.shared_MLP = nn.Sequential(
+            nn.Conv2d(channel, channel // ratio, 1, bias=False),
+            nn.ReLU(),
+            nn.Conv2d(channel // ratio, channel, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+ 
+    def forward(self, x):
+        avgout = self.shared_MLP(self.avg_pool(x))
+        maxout = self.shared_MLP(self.max_pool(x))
+        return self.sigmoid(avgout + maxout)
+ 
+class SpatialAttentionModule(nn.Module):
+    def __init__(self):
+        super(SpatialAttentionModule, self).__init__()
+        self.conv2d = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7, stride=1, padding=3)
+        self.sigmoid = nn.Sigmoid()
+ 
+    def forward(self, x):
+        #map尺寸不变，缩减通道
+        avgout = torch.mean(x, dim=1, keepdim=True)
+        maxout, _ = torch.max(x, dim=1, keepdim=True)
+        out = torch.cat([avgout, maxout], dim=1)
+        out = self.sigmoid(self.conv2d(out))
+        return out
+ 
+class CBAM(nn.Module):
+    def __init__(self, channel):
+        super(CBAM, self).__init__()
+        self.channel_attention = ChannelAttentionModule(channel)
+        self.spatial_attention = SpatialAttentionModule()
+ 
+    def forward(self, x):
+        out = self.channel_attention(x) * x
+        out = self.spatial_attention(out) * out
+        return out
+#  ======================================== cbam ==============================================
     
 class Backbone(nn.Module):
     def __init__(self, transition_channels, block_channels, n, phi, pretrained=False):
@@ -120,6 +255,7 @@ class Backbone(nn.Module):
     def forward(self, x):
         x = self.stem(x)
         x = self.dark2(x)
+        # feat0 = x   # ---new
         #-----------------------------------------------#
         #   dark3的输出为80, 80, 256，是一个有效特征层
         #-----------------------------------------------#
@@ -135,4 +271,9 @@ class Backbone(nn.Module):
         #-----------------------------------------------#
         x = self.dark5(x)
         feat3 = x
+
+        # print(feat1.size())
+        # print(feat2.size())
+        # print(feat3.size())
         return feat1, feat2, feat3
+        # return feat0, feat1, feat2, feat3

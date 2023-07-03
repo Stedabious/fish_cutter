@@ -1,6 +1,8 @@
 # fish_cutter
 本程式使用Yolov7進行辨識魚頭和魚尾，將位置訊息、深度圖和魚隻重量帶入演算法計算出分切線段，將換算後的分切距離傳送至arduino，進行實體分切。
 
+yolov7使用的程式來源為 https://github.com/bubbliiiing/yolov7-pytorch
+
 
 ##   套件版本
 ```
